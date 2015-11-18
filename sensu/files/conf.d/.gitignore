@@ -1,0 +1,3 @@
+# Track nothing except the gitignore file itself
+*
+!.gitignore
