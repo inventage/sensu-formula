@@ -36,6 +36,9 @@ sensu_enable_windows_service:
           address: {{ sensu.client.address }}
           subscriptions: {{ sensu.client.subscriptions }}
           safe_mode: {{ sensu.client.safe_mode }}
+          {% for key, value in sensu.client.config_append.iteritems() %}
+          {{ key }}: {{ value|json }}
+          {% endfor %}
     - require:
       - pkg: sensu
 
