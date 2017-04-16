@@ -8,25 +8,39 @@ include:
 
 /etc/sensu/conf.d:
   file.recurse:
-    - source: salt://sensu/files/conf.d
+    - source: salt://{{ sensu.paths.conf_d }}
     - template: jinja
     - require:
       - pkg: sensu
     - watch_in:
       - service: sensu-server
 
+{%- if salt['pillar.get']('sensu:handlers') %}
+
+sensu_handlers_file:
+  file.serialize:
+    - name: {{ sensu.paths.handlers_file }}
+    - dataset_pillar: sensu:handlers
+    - formatter: JSON
+    - require:
+      - pkg: sensu
+    - watch_in:
+      - service: sensu-server
+
+{% endif %}
+
 /etc/sensu/extensions:
   file.recurse:
-    - source: salt://sensu/files/extensions
+    - source: salt://{{ sensu.paths.extensions }}
     - file_mode: 555
     - require:
       - pkg: sensu
     - watch_in:
       - service: sensu-server
-   
+
 /etc/sensu/mutators:
   file.recurse:
-    - source: salt://sensu/files/mutators
+    - source: salt://{{ sensu.paths.mutators }}
     - file_mode: 555
     - require:
       - pkg: sensu
@@ -35,7 +49,7 @@ include:
 
 /etc/sensu/handlers:
   file.recurse:
-    - source: salt://sensu/files/handlers
+    - source: salt://{{ sensu.paths.handlers }}
     - file_mode: 555
     - require:
       - pkg: sensu
@@ -46,10 +60,26 @@ include:
 
 {% set gem_list = salt['pillar.get']('sensu:server:install_gems', []) %}
 {% for gem in gem_list %}
-server_install_{{ gem }}:
-  cmd.run:
-    - name: /opt/sensu/embedded/bin/gem install {{ gem }} --no-ri --no-rdoc
-    - unless: /opt/sensu/embedded/bin/gem list | grep -qE "^{{ gem }}\s+"
+{% if gem is mapping %}
+{% set gem_name = gem.name %}
+{% else %}
+{% set gem_name = gem %}
+{% endif %}
+install_{{ gem_name }}:
+  gem.installed:
+    - name: {{ gem_name }}
+    {% if sensu.client.embedded_ruby %}
+    - gem_bin: /opt/sensu/embedded/bin/gem
+    {% else %}
+    - gem_bin: None
+    {% endif %}
+    {% if gem.version is defined %}
+    - version: {{ gem.version }}
+    {% endif %}
+    - rdoc: False
+    - ri: False
+    - proxy: {{ salt['pillar.get']('sensu:client:gem_proxy', None) }}
+    - source: {{ salt['pillar.get']('sensu:client:gem_source', None) }}
 {% endfor %}
 
 sensu-server:

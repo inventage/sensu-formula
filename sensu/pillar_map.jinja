@@ -31,21 +31,45 @@
             'enable': False
         },
         'uchiwa': {
-            'user': '',
-            'password': '',
+            'host': '0.0.0.0',
             'port': 3000,
+            'loglevel': 'info',
+            'refresh': 10,
             'stats': 10,
-            'refresh': 10000
+            'users': [
+                {
+                'username': 'admin',
+                'password': 'secret',
+                'role': { 'readonly': False }
+                },
+                {
+                'username': 'guest',
+                'password': 'secret',
+                'role': { 'readonly': True }
+                }
+            ]
         },
-        'sites': {
-            'name': 'Sensu',
-            'host': '127.0.0.1',
-            'ssl': False,
-            'port': 4567,
-            'user': 'admin',
-            'password': '',
-            'path': '',
-            'timeout': 5000
-        }
+        'sites': [
+            {
+                'name': 'Sensu',
+                'host': '127.0.0.1',
+                'port': 4567,
+                'ssl': False,
+                'insecure': False,
+                'path': '',
+                'user': 'admin',
+                'password': '',
+                'timeout': 5
+            }
+        ],
+        'paths': {
+            'plugins'       : 'sensu/files/plugins',
+            'conf_d'        : 'sensu/files/conf.d',
+            'extensions'    : 'sensu/files/extensions',
+            'mutators'      : 'sensu/files/mutators',
+            'handlers'      : 'sensu/files/handlers',
+            'checks_file'   : '/etc/sensu/conf.d/checks.json',
+            'handlers_file' : '/etc/sensu/conf.d/handlers.json',
+        },
     },
 }, merge=salt['pillar.get']('sensu'), default='default') %}

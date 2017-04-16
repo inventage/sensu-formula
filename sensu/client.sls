@@ -21,6 +21,7 @@ sensu_enable_windows_service:
     - name: 'sc create sensu-client start= delayed-auto binPath= c:\opt\sensu\bin\sensu-client.exe DisplayName= "Sensu Client"'
     - unless: 'sc query sensu-client'
 {% endif %}
+
 /etc/sensu/conf.d/client.json:
   file.serialize:
     - formatter: json
@@ -36,6 +37,15 @@ sensu_enable_windows_service:
           address: {{ sensu.client.address }}
           subscriptions: {{ sensu.client.subscriptions }}
           safe_mode: {{ sensu.client.safe_mode }}
+          {% if sensu.client.get('keepalive') %}
+          keepalive: {{ sensu.client.keepalive }}
+          {% endif %}
+          {% if sensu.client.get("command_tokens") %}
+          command_tokens: {{ sensu.client.command_tokens }}
+          {% endif %}
+          {% if sensu.client.get("redact") %}
+          redact: {{ sensu.client.redact }}
+          {% endif %}
           {% for key, value in sensu.client.config_append.iteritems() %}
           {{ key }}: {{ value|json }}
           {% endfor %}
@@ -44,7 +54,7 @@ sensu_enable_windows_service:
 
 /etc/sensu/plugins:
   file.recurse:
-    - source: salt://sensu/files/plugins
+    - source: salt://{{ sensu.paths.plugins }}
     {% if grains['os_family'] != 'Windows' %}
     - file_mode: 555
     {% endif %}
@@ -64,11 +74,16 @@ sensu-client:
     - watch:
       - file: /etc/sensu/conf.d/*
 
-{% if sensu.client.embedded_ruby and grains['os_family'] != 'Windows' %}
+{% if grains['os_family'] != 'Windows' %}
 /etc/default/sensu:
   file.replace:
+{%- if sensu.client.embedded_ruby %}
     - pattern: 'EMBEDDED_RUBY=false'
     - repl: 'EMBEDDED_RUBY=true'
+{%- else %}
+    - pattern: 'EMBEDDED_RUBY=true'
+    - repl: 'EMBEDDED_RUBY=false'
+{%- endif %}
     - watch_in:
       - service: sensu-client
 {% endif %}
@@ -81,17 +96,41 @@ sensu-client:
       - service: sensu-client
 {% endif %}
 
-{% if sensu.client.embedded_ruby %}
-{% set gem_path = '/opt/sensu/embedded/bin/gem' %}
-{% else %}
-{% set gem_path = 'gem' %}
-{% endif %}
-
 {% set gem_list = salt['pillar.get']('sensu:client:install_gems', []) %}
 {% for gem in gem_list %}
-client_install_{{ gem }}:
-  cmd.run:
-    - name: {{ gem_path }} install {{ gem }} --no-ri --no-rdoc
-    - unless: {{ gem_path }} list | grep -qE "^{{ gem }}\s+"
+{% if gem is mapping %}
+{% set gem_name = gem.name %}
+{% else %}
+{% set gem_name = gem %}
+{% endif %}
+install_{{ gem_name }}:
+  gem.installed:
+    - name: {{ gem_name }}
+    {% if sensu.client.embedded_ruby %}
+    - gem_bin: /opt/sensu/embedded/bin/gem
+    {% else %}
+    - gem_bin: None
+    {% endif %}
+    {% if gem.version is defined %}
+    - version: {{ gem.version }}
+    {% endif %}
+    - rdoc: False
+    - ri: False
+    - proxy: {{ salt['pillar.get']('sensu:client:gem_proxy', None) }}
+    - source: {{ salt['pillar.get']('sensu:client:gem_source', None) }}
 {% endfor %}
 
+{%- if salt['pillar.get']('sensu:checks') %}
+
+sensu_checks_file:
+  file.serialize:
+    - name: {{ sensu.paths.checks_file }}
+    - dataset:
+        checks: {{ salt['pillar.get']('sensu:checks') }}
+    - formatter: json
+    - require:
+      - pkg: sensu
+    - watch_in:
+      - service: sensu-client
+
+{%- endif %}
