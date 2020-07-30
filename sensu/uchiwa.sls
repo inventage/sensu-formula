@@ -17,9 +17,9 @@ uchiwa:
       - pkg: uchiwa
     - dataset:
         sensu:
-          {{ sensu.sites }}
+          {{ sensu.sites | json }}
         uchiwa:
-          {{ sensu.uchiwa }}
+          {{ sensu.uchiwa | json }}
 
   service.running:
     - enable: True
